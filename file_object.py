@@ -32,13 +32,31 @@ class FileObject:
             raise ValueError("Mode must be 'append' or 'overwrite'")
 
     def write_at(self, pos, text):
-        ... 
+        """Overwrite content at the given byte index and return the updated FileObject."""
+        if pos < 0:
+            pos = 0
+        if pos > len(self.content):
+            pos = len(self.content)
+        self.content = self.content[:pos] + text + self.content[pos + len(text):]
+        return self
 
     def move_within_file(self, start, size, target):
-        ...
+        chunk = self.content[start:start + size]         # grab the chunk
+        without_chunk = self.content[:start] + self.content[start + size:]  # remove it
+
+        # Adjust target since the string shifted after removal
+        if target > start:
+           target -= size
+
+        self.content = without_chunk[:target] + chunk + without_chunk[target:]
+        return self
 
     def truncate(self, max_size):
-        ...
+       self.content = self.content[:max_size]
+       return self
+
 
     def close(self):
-        ...
+       """Clear in-memory content (actual persist happens via fs.write_file)."""
+       self.content = ""
+       self.segments = []

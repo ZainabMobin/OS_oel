@@ -108,6 +108,7 @@ class Shell:
             print(f"File '{fname}' already exists.")
             return
         self.fs.create_file(fname)
+        print(f"Succesfully created file:{fname}")
         ...
 
 
@@ -115,6 +116,11 @@ class Shell:
         if len(args) < 1:
             print("Usage: delete <filename>")
             return
+        fname = args[0] if args else None
+        if not self.fs._delete_file(fname):
+            print(f"File: {fname} could not be deleted")
+            return
+        print(f"File: {fname} has been deleted")
         ...
         
 
@@ -145,7 +151,7 @@ class Shell:
 
     def handle_open(self, args): # args passed = [mode, filename, ...]
         if len(args) < 2:
-            print("Usage: open <filename> [mode]")
+            print("Usage: open [mode] <filename> ")
             return
 
         mode_str = args[0]
@@ -179,10 +185,9 @@ class Shell:
         if mode_enum == MainCommand.READ:
             self.handle_read(extra)   # pass fileObj and remaining args
         elif mode_enum == MainCommand.WRITE:
-            self.handle_write(args[2:])   # pass remaining args
-            ...
+            self.handle_write(extra)   # pass remaining args
         elif mode_enum == MainCommand.WRITE_AT:
-            ...
+            self.handle_write_at(extra)
         elif mode_enum == MainCommand.MOVE:
             ...
         elif mode_enum == MainCommand.TRUNCATE:
@@ -218,25 +223,66 @@ class Shell:
 
 
     def handle_write_at(self, args):
-        if len(args) < 3:
-            print("Usage: open write_at <filename> <position> 'text' ")
+        if len(args) < 2:
+            print("Usage: open write_at <filename> <position> 'text'")
             return
-        ...
+        if self.opened_file is None:
+            print("No file is currently open.")
+            return
+
+        try:
+            position = int(args[0])
+        except ValueError:
+            print("Position must be an integer.")
+            return
+
+        text = self.extract_text(args[1:])
+        self.opened_file.write_at(position, text)
+        self.fs.write_file(self.opened_file)
+        print(f"Wrote at position {position} in '{self.opened_file.name}'.")
 
 
     def handle_move_within(self, args):
-        if len(args) < 4:
-            print("Usage: open move_within <filename> <start> <size> <target>")
-            return
-        ...
+        if len(args) < 3:
+           print("Usage: open move_within <filename> <start> <size> <target>")
+           return
+        if self.opened_file is None:
+           print("No file is currently open.")
+           return
+        try:
+           start  = int(args[0])
+           size   = int(args[1])
+           target = int(args[2])
+        except ValueError:
+           print("start, size, and target must be integers.")
+           return
 
+        file_size = len(self.opened_file.content)
+        if target > file_size:
+           print(f"Error: target {target} exceeds file size {file_size}.")
+           return
+
+        self.fs.move_within_file(self.opened_file, start, size, target)
+        print(f"Moved {size} bytes from {start} → {target} in '{self.opened_file.name}'.")
 
     def handle_truncate(self, args):
-        if len(args) < 2:
-            print("Usage: open truncate <filename> <max_size>")
-            return
-        ...
+        if len(args) < 1:
+           print("Usage: open truncate <filename> <max_size>")
+           return
+        if self.opened_file is None:
+           print("No file is currently open.")
+           return
+        try:
+           max_size = int(args[0])
+        except ValueError:
+           print("max_size must be an integer.")
+           return
+        if max_size < 0:
+           print("max_size must be non-negative.")
+           return
 
+        self.fs.truncate_file(self.opened_file, max_size)
+        print(f"Truncated '{self.opened_file.name}' to {max_size} bytes.")
 
     def handle_close(self, args):
         if len(args) < 1:

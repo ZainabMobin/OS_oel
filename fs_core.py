@@ -4,6 +4,9 @@ from file_object import FileObject
 # HEADER_LIMIT = 5  #assume header limit is set to 5 MB
 SEGMENT_SIZE = 512 # assume 512 bytes for each file metadata entry in the header
 SEPERATOR = b'<<<DATA>>> ' # binary separator between header and data region in filesystem.dat
+HEADER_SIZE = 65536  # 64 KB fixed header region
+SEPARATOR_POS = HEADER_SIZE  # Separator always at byte 65536
+DATA_START = HEADER_SIZE + len(SEPERATOR)  # Data always starts here
 
 class FileSystem:
     def __init__(self):
@@ -28,40 +31,123 @@ class FileSystem:
             }
             self._write_header_and_data(header, b'')
 
+    def _should_compact(self):
+        """Decide if compaction is needed based on dead space fragmentation."""
+        if not self.header['dead_space']:
+            return False
+        
+        # Calculate average dead block size
+        total_dead = sum(block['size'] for block in self.header['dead_space'])
+        num_blocks = len(self.header['dead_space'])
+        avg_size = total_dead / num_blocks if num_blocks > 0 else 0
+        
+        # Threshold: if average dead block < 180 bytes, compaction needed
+        threshold = 180
+        return avg_size < threshold
+
+    def _compact_data_region(self):
+        """Compact the data region by rewriting live segments contiguously."""
+        print("[FS] Compacting data region...")
+        
+        # Read entire data region (educational - in production, stream)
+        with open(self.filesystem_path, 'rb') as f:
+            f.seek(DATA_START)
+            data_bytes = f.read()
+        
+        # Collect all live segments in logical order (as they appear in metadata)
+        live_segments = []
+        for fname, meta in self.header['files'].items():
+            for seg in meta['segments']:
+                live_segments.append({
+                    'fname': fname,
+                    'offset': seg['offset'],
+                    'length': seg['length'],
+                    'data': data_bytes[seg['offset']:seg['offset'] + seg['length']]
+                })
+        
+        # Build new compacted data
+        new_data = bytearray()
+        new_offset = 0
+        for seg in live_segments:
+            seg['new_offset'] = new_offset
+            new_data.extend(seg['data'])
+            new_offset += seg['length']
+        
+        # Write compacted data back
+        with open(self.filesystem_path, 'r+b') as f:
+            f.seek(DATA_START)
+            f.write(new_data)
+            f.truncate(DATA_START + len(new_data))  # Remove orphaned bytes
+        
+        # Update metadata with new offsets
+        for seg in live_segments:
+            fname = seg['fname']
+            old_offset = seg['offset']
+            new_offset = seg['new_offset']
+            # Find and update the segment in header
+            for file_seg in self.header['files'][fname]['segments']:
+                if file_seg['offset'] == old_offset:
+                    file_seg['offset'] = new_offset
+                    break
+        
+        # Clear dead space
+        self.header['dead_space'] = []
+        
+        # Write updated header
+        self._write_header_only()
+        
+        print(f"[FS] Compacted {len(live_segments)} segments, freed {len(data_bytes) - len(new_data)} bytes")
+
     def _load_filesystem(self):
         with open(self.filesystem_path, 'rb') as f:
-            raw = f.read()
-        
-        sep_offset = raw.find(SEPERATOR)
-        if sep_offset == -1:
-            raise ValueError("Invalid filesystem.dat format: Missing separator")
-        
-        header_bytes = raw[:sep_offset]
-        self.data_start = sep_offset + len(SEPERATOR)
+           header_bytes = f.read(HEADER_SIZE)
 
+        header_json = header_bytes.rstrip(b'\x00').decode()
+       
         try:
-            self.header = json.loads(header_bytes.decode())
+            self.header = json.loads(header_json)
         except json.JSONDecodeError:
             raise ValueError("Invalid JSON header {e}")
+        self.data_start = DATA_START
+        
+        # Check if compaction needed
+        if self._should_compact():
+            self._compact_data_region()
 
     def _write_header_and_data(self, header_dict, data):
         header_json = json.dumps(header_dict).encode()  # Convert header dict to JSON bytes
+        padding_needed = HEADER_SIZE - len(header_json)
+        if padding_needed > 0:
+            header_json += b'\x00' * padding_needed
+        # Now header_json is exactly HEADER_SIZE bytes
         with open(self.filesystem_path, 'wb') as f:
             f.write(header_json)
             f.write(SEPERATOR)
             f.write(data)
 
         self.header = header_dict  # Update the in-memory header after writing
-        self.data_start = len(header_json) + len(SEPERATOR)  # Update data start offset
+    
+    def _write_header_only(self):
+        """Write only the header (with padding) and separator. Data region untouched."""
+        header_json = json.dumps(self.header).encode()
+        padding_needed = HEADER_SIZE - len(header_json)
+        if padding_needed > 0:
+            header_json += b'\x00' * padding_needed
+        with open(self.filesystem_path, 'r+b') as f:
+            f.seek(0)
+            f.write(header_json)
+            f.write(SEPERATOR)
+    
+    def _write_segment_at_offset(self, relative_offset, data):
+        """Write segment bytes at a specific offset in the data region."""
+        absolute_offset = DATA_START + relative_offset
+        with open(self.filesystem_path, 'r+b') as f:
+            f.seek(absolute_offset)
+            f.write(data)
 
     def update_header(self):
-        
-        #if current loaded heaser is different than the stored one, update the header in the file with the current loaded one, and rewrite the data region as well since it will be shifted due to change in header size
-        data_bytes = self.read_serialized_content(self.data_start, None)  # Read all data from the current data start to the end of file
-        self._write_header_and_data(self.header, data_bytes)
-        
-        ##feels like an issue, to rewrite the whole data region every time we update the header also not to mention how raw json will frastically take up space with verbose headings 
-        # it should have either a limit for the header, or be stored in a seperate file itself, 
+        """Update only the header region without touching data."""
+        self._write_header_only() 
 
     def _add_dead_space(self, offset, size):
         if size <= 0:
@@ -79,34 +165,33 @@ class FileSystem:
         (First‑fit strategy, you can change to best‑fit if desired.)
         """
         for i, block in enumerate(self.header['dead_space']):
-            if block['length'] >= needed:
+            if block['size'] >= needed:
                 return block['offset'], i
         return None, None
 
     def _consume_dead_block(self, idx, used_length):
         """
         Remove or shrink a dead block after allocation.
-        If the block is exactly used up, remove it; otherwise reduce its offset and length.
+        If the block is exactly used up, remove it; otherwise reduce its offset and size.
         """
         block = self.header['dead_space'][idx]
-        if block['length'] == used_length:
+        if block['size'] == used_length:
             self.header['dead_space'].pop(idx)
         else:
             block['offset'] += used_length
-            block['length'] -= used_length
+            block['size'] -= used_length
 
     # ----------------------------------------------------------------------
     # File operations
     # ----------------------------------------------------------------------
-    def write_file(self, file_obj): # This function will write the file content to the data region of filesystem.dat
-        # and update the metadata structure accordingly
+    def write_file(self, file_obj):
         """
         Write (or overwrite) a file's content into the filesystem.
-        - Old segments (if any) are freed.
-        - Content is divided into fixed‑size segments.
-        - Each segment is written to the end of the data section (for simplicity).
-        - Header is updated with new segment list and size.
-        - Dead space is updated with the old segments.
+        - Old segments (if any) are freed to dead_space.
+        - Content is divided into segments.
+        - Each segment tries to allocate from dead_space first, else appends at end.
+        - Only segment bytes are written (via seek/write).
+        - Header is updated separately (via _write_header_only).
         """
         name = file_obj.name
         content_bytes = self._serialize(file_obj.content)
@@ -120,30 +205,29 @@ class FileSystem:
         # Divide into segments
         segments_data = self._divide_into_segments(content_bytes)
 
-        # Determine where new data will be written.
-        # For simplicity we always append at the end of the current data section.
-        # (You can later enhance to reuse dead space using _allocate_space.)
-        with open(self.filesystem_path, 'rb') as f:
-            f.seek(0, os.SEEK_END)
-            current_end = f.tell()
-
-        # But wait: the data section may not extend to the end of file if we only
-        # update the header. So we actually need to know the real end of data section.
-        # We'll read the whole data section to know its current length.
-        with open(self.filesystem_path, 'rb') as f:
-            f.seek(self.data_start)
-            data_bytes = f.read()
-        data_len = len(data_bytes)
+        # Calculate current data region end
+        file_size = os.path.getsize(self.filesystem_path) if os.path.exists(self.filesystem_path) else 0
+        data_region_size = file_size - DATA_START if file_size >= DATA_START else 0
+        next_append_pos = data_region_size
 
         new_segments = []
-        write_pos = self.data_start + data_len   # append at the end
 
         for seg_bytes in segments_data:
             seg_len = len(seg_bytes)
-            new_segments.append({'offset': write_pos - self.data_start, 'length': seg_len})
-            # Append this segment to the data bytes
-            data_bytes += seg_bytes
-            write_pos += seg_len
+            
+            # Try to allocate from dead space first
+            alloc_offset, block_idx = self._allocate_space(seg_len)
+            
+            if alloc_offset is not None:
+                # Use dead space
+                self._write_segment_at_offset(alloc_offset, seg_bytes)
+                new_segments.append({'offset': alloc_offset, 'length': seg_len})
+                self._consume_dead_block(block_idx, seg_len)
+            else:
+                # Append at end of data region
+                self._write_segment_at_offset(next_append_pos, seg_bytes)
+                new_segments.append({'offset': next_append_pos, 'length': seg_len})
+                next_append_pos += seg_len
 
         # Update metadata
         self.header['files'][name] = {
@@ -151,8 +235,8 @@ class FileSystem:
             'segments': new_segments
         }
 
-        # Write everything back (header + updated data section)
-        self._write_header_and_data(self.header, data_bytes)
+        # Write only header (data already written via seek/write)
+        self._write_header_only()
 
         print(f"[FS] Written '{name}' ({len(content_bytes)} bytes) in {len(new_segments)} segment(s).")
 
@@ -196,8 +280,39 @@ class FileSystem:
             'segments': []
         }
         self.update_header() #updates and adds file metadata to the header
+    
+    def _delete_file(self, fname):
+        # 1. Check file exists
+        if fname not in self.header['files']:
+           print(f"[FS] Error: File '{fname}' not found.")
+           return False
 
+        # 2. Free its data segments → mark as dead space
+        for seg in self.header['files'][fname]['segments']:
+           self._add_dead_space(seg['offset'], seg['length'])
+           # Note: _add_dead_space already calls update_header(), 
+          # but we'll do a final write below anyway
+
+        # 3. Remove from in-memory header (RAM)
+        del self.header['files'][fname]
+
+        # 4. Write updated header to filesystem.dat 
+        #    (_write_header_only keeps it exactly HEADER_SIZE = 64KB via padding)
+        self._write_header_only()
+
+        print(f"[FS] Deleted '{fname}', segments returned to dead_space.")
+        return True
         
+    def move_within_file(self, file_obj, start, size, target):
+       file_obj.move_within_file(start, size, target)   # mutate string in RAM
+       self.write_file(file_obj)                         # re-segment and persist
+
+
+    def truncate_file(self, file_obj, max_size):
+       file_obj.truncate(max_size)   # trim string in RAM
+       self.write_file(file_obj)     # re-segment and persist
+
+       
     # ----------------------------------------------------------------------
     # Helper methods (segmentation, serialisation)
     # ----------------------------------------------------------------------
@@ -239,7 +354,7 @@ class FileSystem:
         for block in self.header['dead_space']:
             entries.append({
                 'offset': block['offset'],
-                'length': block['length'],
+                'length': block['size'],
                 'status': 'DEAD',
                 'file': '(free)'
             })
