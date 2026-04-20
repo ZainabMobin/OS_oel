@@ -1,6 +1,15 @@
-CS330: Operating Systems
-Lab 11: File Management
-System Design Document
+**CS330: Operating Systems    Lab 11: File Management System   Design Document**
+
+# Quick Run 
+
+Run shell.py to start the CLI interface. Use the provided sample.dat as a starting point, if the file is not present in the directory then the program creates and initializes it in the following format:
+
+```
+header = {"files": {}, "dead_space": []} <<<DATA>>>
+
+```
+
+You can create your own filesystem.dat from scratch, but it must match the initial format.
 
 # 1. Overview
 This document describes the design decisions made for the file management system in Lab ## 11. The system simulates a virtual file system stored entirely within a single data file (filesystem.dat). The implementation uses a hybrid architecture that balances simplicity with realistic OS-level behavior.
