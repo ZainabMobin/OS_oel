@@ -16,7 +16,6 @@ class FileSystem:
         self.data_start = 0
         self._load_or_init()
 
-
     def _load_or_init(self):
         if not os.path.exists(self.filesystem_path):
             # Create the initial structure for the filesystem
@@ -381,11 +380,9 @@ class FileSystem:
         """Split bytes into chunks of SEGMENT_SIZE."""
         return [content_bytes[i:i+SEGMENT_SIZE] for i in range(0, len(content_bytes), SEGMENT_SIZE)]
 
-
     def _serialize(self, content_str):
         """Convert a string to bytes (UTF-8)."""
         return content_str.encode('utf-8')
-
 
     def _deserialize(self, data_bytes):
         """Convert bytes back to a UTF-8 string."""
