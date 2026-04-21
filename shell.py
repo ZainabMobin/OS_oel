@@ -221,8 +221,6 @@ class Shell:
         else:
             print(f"Mode '{mode_str}' is not supported with open.")
 
-        self.handle_close([-1]) #close file after operation is done
-
     
     def handle_write(self, args):
         text = self.extract_text(args)
