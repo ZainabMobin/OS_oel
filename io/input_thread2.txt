@@ -1,0 +1,9 @@
+mkdir assignments
+create notes.txt
+open write notes.txt Thread 2 was here first
+open write notes.txt Setting up the assignments folder for Thread 1
+ls
+open read notes.txt
+open truncate workload.txt 50
+mmap
+ls

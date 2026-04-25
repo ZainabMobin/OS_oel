@@ -1,0 +1,30 @@
+Directory 'assignments' created in '/'.
+Successfully created file: notes.txt
+File 'notes.txt' opened | Wrote to 'notes.txt' successfully.
+File 'notes.txt' opened | Wrote to 'notes.txt' successfully.
+[FILE] h.txt (45 bytes)
+[DIR]  new (118 bytes)
+[FILE] sample.txt (5 bytes)
+[FILE] workload.txt (106 bytes)
+[DIR]  assignments (0 bytes)
+[FILE] notes.txt (69 bytes)
+File 'notes.txt' opened | Thread 2 was here firstSetting up the assignments folder for Thread 1
+Error: File 'notes.txt' is already open. Close it first.
+-------------------- Memory Map --------------------
+       0      11  LIVE    f.txt (seg 1)
+      11      27  LIVE    g.txt (seg 1)
+      38      45  LIVE    h.txt (seg 1)
+      83       5  LIVE    sample.txt (seg 1)
+      88      80  LIVE    sample2.txt (seg 1)
+     168      23  DEAD    (free)
+     191       6  DEAD    (free)
+     197      66  DEAD    (free)
+     263      69  LIVE    notes.txt (seg 1)
+     332     106  LIVE    workload.txt (seg 1)
+----------------------------------------------------
+[FILE] h.txt (45 bytes)
+[DIR]  new (118 bytes)
+[FILE] sample.txt (5 bytes)
+[FILE] workload.txt (106 bytes)
+[DIR]  assignments (0 bytes)
+[FILE] notes.txt (69 bytes)

@@ -1,0 +1,11 @@
+create workload.txt
+open write workload.txt Math: Complete exercises 1-10
+open write workload.txt Physics: Read chapter 5 and summarize
+open write workload.txt History: Essay on World War 2 due Friday
+open write workload.txt Chemistry: Lab report submission
+open write workload.txt English: Annotate pages 100-150
+open write workload.txt CS: Debug the linked list implementation
+open write_at workload.txt 6 Math: Complete exercises 1-10 [DONE]
+mmap
+move workload.txt assignments
+mmap
