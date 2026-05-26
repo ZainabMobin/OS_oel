@@ -1,0 +1,8 @@
+ls
+chdir assignments
+open write sample.txt 'Thread 3: nothing to see here'
+chdir ..
+open read notes.txt
+open write workload.txt 'Added some filler info by thread 3!!!!!'
+mmap
+ls

@@ -336,13 +336,19 @@ class FileSystem:
         finally:
             self._end_op()
 
+
     def truncate_file(self, file_obj, max_size):
+        # if the truncate size exceeds file size
+        if file_obj.get_size() < max_size:
+            return False
+
         self._begin_op()
         try:
             file_obj.truncate(max_size)
             self._write_file_internal(file_obj)
         finally:
             self._end_op()
+        return True
 
     # ------------------------------------------------------------------
     # Memory map
@@ -443,11 +449,14 @@ class FileSystem:
             for d in self.header['directories']
         )
 
+
     def file_exists(self, filename):
         return filename in self.header['files']
 
+
     def list_files(self):
         return list(self.header['files'].keys())
+
 
     def list_contents(self, directory_path):
         parent_id = 0 if self._normalize_path(directory_path) == '/' else self._hash_path(self._normalize_path(directory_path))
@@ -485,8 +494,10 @@ class FileSystem:
     def _divide_into_segments(self, content_bytes):
         return [content_bytes[i:i+SEGMENT_SIZE] for i in range(0, len(content_bytes), SEGMENT_SIZE)]
 
+
     def _serialize(self, content_str):
         return content_str.encode('utf-8')
+
 
     def _deserialize(self, data_bytes):
         return data_bytes.decode('utf-8')

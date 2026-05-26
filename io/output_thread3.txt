@@ -1,0 +1,12 @@
+[FILE] workload.txt (0 bytes)
+Directory 'assignments' not found in '/'.
+File 'sample.txt' not found.
+Changed directory to: /
+File 'notes.txt' not found.
+File 'workload.txt' opened | Wrote to 'workload.txt' successfully.
+-------------------- Memory Map --------------------
+       0      39  LIVE    workload.txt (seg 1)
+----------------------------------------------------
+[FILE] workload.txt (39 bytes)
+[DIR]  assignments (0 bytes)
+[FILE] notes.txt (0 bytes)

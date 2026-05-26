@@ -79,6 +79,7 @@ class FileObject:
         finally:
             self.lock.release_write()
 
+    #truncates file by given size
     def truncate(self, max_size):
         self.lock.acquire_write()
         try:
@@ -87,6 +88,15 @@ class FileObject:
         finally:
             self.lock.release_write()
 
+    #returns file size
+    def get_size(self):
+        self.lock.acquire_read()
+        try:
+            return len(self.content)
+        finally:
+            self.lock.release_read()
+
+    #closes file
     def close(self):
         self.lock.acquire_write()
         try:

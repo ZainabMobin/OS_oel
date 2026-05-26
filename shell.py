@@ -227,23 +227,32 @@ class Shell:
 
         try:
             mode_enum = MainCommand(mode_str)
+            
+            if mode_enum == MainCommand.READ:
+                return_text += self.handle_read(extra)
+            elif mode_enum == MainCommand.WRITE:
+                return_text += self.handle_write(extra)
+            elif mode_enum == MainCommand.WRITE_AT:
+                return_text += self.handle_write_at(extra)
+            elif mode_enum == MainCommand.MOVE_WITHIN:
+                return_text += self.handle_move_within(extra)
+            elif mode_enum == MainCommand.TRUNCATE:
+                return_text += self.handle_truncate(extra)
+            else:
+                return_text += f"Mode '{mode_str}' is not supported with open."
+
+            return return_text
+            
         except ValueError:
             return return_text + f"Invalid mode '{mode_str}'."
+                
+        finally:
+            #closes file automatically
+            if self.thread_local.opened_file:
+                name = self.thread_local.opened_file.name
+                mode = getattr(self.thread_local, 'opened_file_mode', 'read')
+                self._close_file(name, mode)
 
-        if mode_enum == MainCommand.READ:
-            return_text += self.handle_read(extra)
-        elif mode_enum == MainCommand.WRITE:
-            return_text += self.handle_write(extra)
-        elif mode_enum == MainCommand.WRITE_AT:
-            return_text += self.handle_write_at(extra)
-        elif mode_enum == MainCommand.MOVE_WITHIN:
-            return_text += self.handle_move_within(extra)
-        elif mode_enum == MainCommand.TRUNCATE:
-            return_text += self.handle_truncate(extra)
-        else:
-            return_text += f"Mode '{mode_str}' is not supported with open."
-
-        return return_text
 
     def handle_write(self, args):
         self._ensure_thread_state()
@@ -310,8 +319,14 @@ class Shell:
             return "max_size must be an integer."
         if max_size < 0:
             return "max_size must be non-negative."
-        self.fs.truncate_file(self.thread_local.opened_file, max_size)
-        return f"Truncated '{self.thread_local.opened_file.name}' to {max_size} bytes."
+        
+        curr_file = self.thread_local.opened_file
+        # if truncate operation is successful
+        if self.fs.truncate_file(curr_file, max_size):
+            return f"Truncated '{curr_file.name}' to {max_size} bytes."
+        # truncate exceeds file size
+        return f"Error Filesize exceeded: {curr_file.name} cannot be truncated by {max_size} units"
+
 
     def handle_close(self, args):
         self._ensure_thread_state()
@@ -319,14 +334,20 @@ class Shell:
             return "No file currently open."
         name = self.thread_local.opened_file.name
         mode = getattr(self.thread_local, 'opened_file_mode', 'read')
+        self._close_file(name, mode)
+        
+    
+    def _close_file(self, name, mode):
         self.thread_local.opened_file.close()
         self.fs.close_file(name, mode)
         self.thread_local.opened_file = None
         self.thread_local.opened_file_mode = None
         return f"[ '{name}' closed ]"
 
+
     def handle_mmap(self, args):
         return self.fs.show_memory_map()
+
 
     def handle_cwd(self, args):
         self._ensure_thread_state()
@@ -380,8 +401,10 @@ Available commands:
         self.running = False
         return "Quitting."
 
+
     def handle_help(self, args):
         return self.handle_man(args)
+
 
     def _extract_text(self, args):
         if not args:
