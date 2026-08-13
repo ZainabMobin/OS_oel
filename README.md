@@ -11,7 +11,7 @@
 Run `shell.py` to start the CLI interface. Use the provided sample.dat as a starting point, if the file is not present in the directory then the program creates and initializes it in the following format:
 
 ```JSON
-header = {"files": {}, "dead_space": []} <<<DATA>>> [raw bytes]
+header = {"directories": [], "files": {}, "dead_space": []} <<<DATA>>> [raw bytes]
 ```
 
 You can create your own filesystem.dat from scratch, but it must match the initial format.
@@ -53,7 +53,7 @@ This means directory management uses Python's natural dict/JSON capabilities whi
       ┌─────────────────────────────────────────────┐
       │  JSON HEADER                                │
       │  {                                          │
-      │    "directories": [ <list of items > ],     │
+      │    "directories": [ <list of items* > ],    │
       │    "files": {     < file list >     },      │
       │    "dead_space": [ < region info> ]         │
       │  }                                          │
@@ -65,6 +65,7 @@ This means directory management uses Python's natural dict/JSON capabilities whi
       │  [bytes of readme.txt:      offset 400]     │
       │  [bytes of notes.txt seg 2: offset 600]     │
       └─────────────────────────────────────────────┘
+  *_items - files or folders within a folder_ 
 
 ### 3.2 JSON Header Schema
 
