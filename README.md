@@ -4,9 +4,7 @@
 
 <br>
 
-# FILE SYSTEM DESIGN
-
-## Quick Run 
+# LAB 11: FILE SYSTEM DESIGN
 
 Run `shell.py` to start the CLI interface. Use the provided sample.dat as a starting point, if the file is not present in the directory then the program creates and initializes it in the following format:
 
@@ -363,7 +361,7 @@ C) Relocatable  | metadata | segments |	Excellent |	High |	None |
 For the scope of Lab 11, Option B (Binary serialization) combined with a reasonable size limit (e.g., 1 MB) provides the best balance between compression and preventing header data collision. The space overhead is negligible on modern systems, and the constraint is clearly documented.
 
 
-# MULTI-USER CONCURRENT FILESYSTEM
+# LAB 12: CONCURRENCY FOR MULTI-USER FILESYSTEM SHARING
 <!-- documentation for next lab to add later -->
 
 ## 
